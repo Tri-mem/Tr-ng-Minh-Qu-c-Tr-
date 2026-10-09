@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated customer profile and shipping preferences in NovaShop.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Unique Firebase Auth UID of the user."
+        },
+        "fullName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Full display name of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "minLength": 3,
+          "maxLength": 150,
+          "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+          "description": "Verified email address of the user."
+        },
+        "phone": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 15,
+          "pattern": "^([0-9+\\-\\s]{9,15})?$",
+          "description": "Contact phone number."
+        },
+        "avatar": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 500,
+          "description": "Profile avatar URL."
+        },
+        "memberTier": {
+          "type": "string",
+          "enum": ["Bronze", "Silver", "Gold", "Diamond"],
+          "maxLength": 20,
+          "description": "Loyalty membership tier."
+        },
+        "novaPoints": {
+          "type": "number",
+          "description": "Accumulated NovaPoints reward balance."
+        },
+        "city": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 100,
+          "description": "Default shipping city or province."
+        },
+        "district": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 100,
+          "description": "Default shipping district."
+        },
+        "address": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 250,
+          "description": "Default street shipping address."
+        },
+        "joinedDate": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 30,
+          "description": "Formatted date when the member joined."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the profile was last updated."
+        }
+      },
+      "required": [
+        "uid",
+        "fullName",
+        "email",
+        "phone",
+        "avatar",
+        "memberTier",
+        "novaPoints",
+        "city",
+        "district",
+        "address",
+        "joinedDate",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Stores private authenticated user profile data strictly accessible only by the document owner."
+    }
+  }
+}

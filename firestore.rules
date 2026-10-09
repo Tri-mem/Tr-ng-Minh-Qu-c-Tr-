@@ -1,0 +1,143 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedVipEmail() {
+      return isSignedIn() && request.auth.token.email == 'truongminhquoctri@gmail.com';
+    }
+
+    // 3. Entity Validation Blueprints (Verbatim synced with firebase-blueprint.json)
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+        'uid',
+        'fullName',
+        'email',
+        'phone',
+        'avatar',
+        'memberTier',
+        'novaPoints',
+        'city',
+        'district',
+        'address',
+        'joinedDate',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'fullName',
+        'email',
+        'phone',
+        'avatar',
+        'memberTier',
+        'novaPoints',
+        'city',
+        'district',
+        'address',
+        'joinedDate',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.uid == request.auth.uid &&
+      data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100 &&
+      data.email is string && data.email.size() >= 3 && data.email.size() <= 150 && data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$') &&
+      data.phone is string && data.phone.size() <= 15 && data.phone.matches('^([0-9+\\-\\s]{9,15})?$') &&
+      data.avatar is string && data.avatar.size() <= 500 &&
+      data.memberTier is string && data.memberTier.size() <= 20 && data.memberTier in ['Bronze', 'Silver', 'Gold', 'Diamond'] &&
+      data.novaPoints is number && data.novaPoints >= 0 && data.novaPoints <= 1000000 &&
+      data.city is string && data.city.size() <= 100 &&
+      data.district is string && data.district.size() <= 100 &&
+      data.address is string && data.address.size() <= 250 &&
+      data.joinedDate is string && data.joinedDate.size() >= 1 && data.joinedDate.size() <= 30 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isValidInitialTierAndPoints(data) {
+      return (data.memberTier == 'Bronze' && data.novaPoints == 1000) ||
+             (isBootstrappedVipEmail() && data.memberTier == 'Gold' && data.novaPoints == 2450);
+    }
+
+    function isImmutableProfileCorePreserved() {
+      return incoming().uid == existing().uid &&
+             incoming().createdAt == existing().createdAt &&
+             incoming().joinedDate == existing().joinedDate &&
+             incoming().memberTier == existing().memberTier &&
+             incoming().updatedAt == request.time;
+    }
+
+    function isProfileDetailsUpdateAction() {
+      return isImmutableProfileCorePreserved() &&
+             incoming().novaPoints == existing().novaPoints &&
+             incoming().diff(existing()).affectedKeys().hasOnly([
+               'fullName',
+               'phone',
+               'email',
+               'avatar',
+               'city',
+               'district',
+               'address',
+               'updatedAt'
+             ]);
+    }
+
+    function isPointsUpdateAction() {
+      return isImmutableProfileCorePreserved() &&
+             incoming().novaPoints >= existing().novaPoints &&
+             incoming().novaPoints - existing().novaPoints <= 50000 &&
+             incoming().diff(existing()).affectedKeys().hasOnly([
+               'novaPoints',
+               'updatedAt'
+             ]);
+    }
+
+    // 4. User Profile Collection (PII Strictly Isolated to Document Owner)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) &&
+                       isValidInitialTierAndPoints(incoming()) &&
+                       incoming().createdAt == request.time &&
+                       incoming().updatedAt == request.time;
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       isValidUserProfile(incoming()) && (
+                         isProfileDetailsUpdateAction() ||
+                         isPointsUpdateAction()
+                       );
+
+      allow delete: if false;
+    }
+  }
+}
